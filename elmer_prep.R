@@ -7,6 +7,8 @@ setwd(dir)
 month <- "November"
 year <- 2018
 
+source("lookups.R")
+
 # download file
 # source("download_files.R")
 # download.ntd(dir, month, year)
@@ -17,7 +19,7 @@ transform.ntd.non.master <- function(month, year) {
   sheets <- c("UPT", "VRM", "VRH")
   dts <- NULL
   for (sheet in sheets) {
-    cat("\nReading in ", sheet, " worksheet\n")
+    cat("\nReading in", sheet, "worksheet for", month, year)
     t <- read.xlsx(local.file, sheet = sheet) 
     setDT(t)
     datecols <- colnames(t)[str_which(colnames(t), "\\d+$")]
@@ -56,7 +58,21 @@ query.ntd.non.master <- function(month, year) {
   t <- dt[Date %between% c(prev.date, curr.date),]
 }
 
-
-
-
+# compare start dates
+compare.ntd.versions.start.date <- function(latest.month, latest.year) {
+  dtelm <- transform.ntd.non.master("October", year) # an old file, replace with elmer connection
+  dt <- transform.ntd.non.master(latest.month, latest.year)
+  
+  dtelm.date <- min(dtelm$Date) 
+  dt.date <- min(dt$Date)
+  
+  if (dtelm.date == dt.date) {
+    cat("\nThe", latest.month, latest.year, "file and Elmer share the same beginning reporting month and year:", 
+                month.abb[lubridate::month(dt.date)], lubridate::year(dt.date))
+  } else {
+    cat("\nThe", latest.month, latest.year, "file and what is in Elmer do not share the same beginning reporting month and year.\n",
+        "The", latest.month, latest.year, "file starts with", month.abb[lubridate::month(dt.date)], lubridate::year(dt.date), "\n",
+        "What is in Elmer starts with", month.abb[lubridate::month(dtelm.date)], lubridate::year(dtelm.date))
+  }
+}
 
