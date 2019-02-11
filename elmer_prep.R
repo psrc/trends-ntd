@@ -1,19 +1,35 @@
 library(data.table)
 library(tidyverse)
 library(openxlsx)
+library(odbc)
+library(DBI)
 
 dir <- "C:/Users/CLam/Desktop/trends-ntd"
 setwd(dir)
-month <- "November"
-year <- 2018
+month <- "November" # most current downloaded month
+year <- 2018 # most current downloaded year
 
 source("lookups.R")
+
+elmer_connection <- dbConnect(odbc(),
+                              driver = "SQL Server",
+                              server = "sql2016\\DSADEV",
+                              database = "Sandbox",
+                              trusted_connection = "yes"
+)
+
+# Table Name from Elmer
+working.dbtable <- "Christy.NationalTransitDatabase_Estimates"
+
+
+# Functions ---------------------------------------------------------------
+
 
 # download file
 # source("download_files.R")
 # download.ntd(dir, month, year)
 
-# transform non-master data 
+# transform non-master data from raw
 transform.ntd.non.master <- function(month, year) {
   local.file <- paste0("ntd-monthly-", month, year, '.xlsx')
   sheets <- c("UPT", "VRM", "VRH")
@@ -49,7 +65,7 @@ transform.ntd.non.master <- function(month, year) {
   return(dtsall)
 }
 
-# query non-master data (previous and current month)
+# query non-master data from raw (previous and current month)
 query.ntd.non.master <- function(month, year) {
   dt <- transform.ntd.non.master(month, year)
   month.num <- match(month, month.name)
@@ -59,20 +75,65 @@ query.ntd.non.master <- function(month, year) {
 }
 
 # compare start dates
-compare.ntd.versions.start.date <- function(latest.month, latest.year) {
-  dtelm <- transform.ntd.non.master("October", year) # an old file, replace with elmer connection
-  dt <- transform.ntd.non.master(latest.month, latest.year)
+compare.ntd.versions.share.start.date <- function(month, year) {
+  # dtelm <- transform.ntd.non.master("October", year) # an old file or use elmer connection
+  dtelm <- dbReadTable(elmer_connection,SQL(working.dbtable))
+  setDT(dtelm)
+  
+  dt <- transform.ntd.non.master(month, year)
   
   dtelm.date <- min(dtelm$Date) 
   dt.date <- min(dt$Date)
   
   if (dtelm.date == dt.date) {
-    cat("\nThe", latest.month, latest.year, "file and Elmer share the same beginning reporting month and year:", 
+    cat("\nThe", month, year, "file and Elmer share the same beginning reporting month and year:", 
                 month.abb[lubridate::month(dt.date)], lubridate::year(dt.date))
+    t <- TRUE
   } else {
-    cat("\nThe", latest.month, latest.year, "file and what is in Elmer do not share the same beginning reporting month and year.\n",
-        "The", latest.month, latest.year, "file starts with", month.abb[lubridate::month(dt.date)], lubridate::year(dt.date), "\n",
+    cat("\nThe", month, year, "file and what is in Elmer do not share the same beginning reporting month and year.\n",
+        "The", month, year, "file starts with", month.abb[lubridate::month(dt.date)], lubridate::year(dt.date), "\n",
         "What is in Elmer starts with", month.abb[lubridate::month(dtelm.date)], lubridate::year(dtelm.date))
+    t <- FALSE
   }
+  return(t)
 }
+
+# View differences between versions for the previous month as a table
+compare.ntd.versions <- function(month, year, psrc.region = c("TRUE", "FALSE")) {
+  
+  # dtelm <- transform.ntd.non.master("October", year) # an old file or use elmer connection
+  dtelm <- dbReadTable(elmer_connection,SQL(working.dbtable))
+  setDT(dtelm)
+  
+  dt <- query.ntd.non.master(month, year) # new file
+  
+  # new version
+  cols <- colnames(dt)[!(colnames(dt) %in% c("Active", "ReporterType"))]
+  newdt <- dt[Date == min(Date), ..cols] # select previous month
+  setnames(newdt, "Value", "Value_new")
+  
+  # existing
+  olddt <- dtelm[Date == max(Date), ..cols] 
+  join.cols <- setdiff(cols, "Value")
+  
+  compdt <- merge(olddt, newdt, by = join.cols)
+  diffdt <- compdt[Value != Value_new][, Diff := Value - Value_new]
+  
+  if (psrc.region == TRUE) {
+    psrc <- names(abbr)
+    t <- diffdt[Agency %in% psrc,]
+  } else {
+    t <- diffdt[order(Diff)]
+  }
+  return(t)
+}
+
+
+# Update Elmer ------------------------------------------------------------
+
+
+# dt <- transform.ntd.non.master("November", 2018)
+# dbWriteTable(elmer_connection, "NationalTransitDatabase_Estimates", as.data.frame(dt))
+# dbDisconnect(elmer_connection)
+
 
