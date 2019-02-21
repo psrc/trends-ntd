@@ -6,17 +6,27 @@ library(DBI)
 
 dir <- "C:/Users/CLam/Desktop/trends-ntd"
 setwd(dir)
-month <- "November" # most current downloaded month
+month <- "December" # most current downloaded month
 year <- 2018 # most current downloaded year
 
 source("lookups.R")
 
-elmer_connection <- dbConnect(odbc(),
-                              driver = "SQL Server",
-                              server = "sql2016\\DSADEV",
-                              database = "Sandbox",
-                              trusted_connection = "yes"
-)
+db.connect <- function() {
+  elmer_connection <- dbConnect(odbc(),
+                                driver = "SQL Server",
+                                server = "sql2016\\DSADEV",
+                                database = "Sandbox",
+                                trusted_connection = "yes"
+  )
+}
+
+# read table
+read.dt <- function() {
+  elmer_connection <- db.connect()
+  dtelm <- dbReadTable(elmer_connection, SQL(working.dbtable))
+  dbDisconnect(elmer_connection)
+  setDT(dtelm)
+}
 
 # Table Name from Elmer
 working.dbtable <- "Christy.NationalTransitDatabase_Estimates"
@@ -77,8 +87,7 @@ query.ntd.non.master <- function(month, year) {
 # compare start dates
 compare.ntd.versions.share.start.date <- function(month, year) {
   # dtelm <- transform.ntd.non.master("October", year) # an old file or use elmer connection
-  dtelm <- dbReadTable(elmer_connection,SQL(working.dbtable))
-  setDT(dtelm)
+  dtelm <- read.dt()
   
   dt <- transform.ntd.non.master(month, year)
   
@@ -102,9 +111,8 @@ compare.ntd.versions.share.start.date <- function(month, year) {
 compare.ntd.versions <- function(month, year, psrc.region = c("TRUE", "FALSE")) {
   
   # dtelm <- transform.ntd.non.master("October", year) # an old file or use elmer connection
-  dtelm <- dbReadTable(elmer_connection,SQL(working.dbtable))
-  setDT(dtelm)
-  
+  dtelm <- read.dt()
+
   dt <- query.ntd.non.master(month, year) # new file
   
   # new version
@@ -113,13 +121,13 @@ compare.ntd.versions <- function(month, year, psrc.region = c("TRUE", "FALSE")) 
   setnames(newdt, "Value", "Value_new")
   
   # existing
-  olddt <- dtelm[Date == max(Date), ..cols] 
+  olddt <- dtelm[Date == max(Date), ..cols][, Date := lubridate::ymd(Date)] 
   join.cols <- setdiff(cols, "Value")
   
   compdt <- merge(olddt, newdt, by = join.cols)
-  diffdt <- compdt[Value != Value_new][, Diff := Value - Value_new]
+  diffdt <- compdt[Value != Value_new][, Diff := Value_new- Value]
   
-  if (psrc.region == TRUE) {
+  if (psrc.region == "TRUE") {
     psrc <- names(abbr)
     t <- diffdt[Agency %in% psrc,]
   } else {
@@ -128,11 +136,13 @@ compare.ntd.versions <- function(month, year, psrc.region = c("TRUE", "FALSE")) 
   return(t)
 }
 
+# compare.ntd.versions.share.start.date(month, year)
+# comp.dt <- compare.ntd.versions(month, year, psrc.region = "TRUE")
 
 # Update Elmer ------------------------------------------------------------
 
 
-# dt <- transform.ntd.non.master("November", 2018)
+# dt <- transform.ntd.non.master(month, year)
 # dbWriteTable(elmer_connection, "NationalTransitDatabase_Estimates", as.data.frame(dt))
 # dbDisconnect(elmer_connection)
 

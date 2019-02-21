@@ -16,3 +16,7 @@ modes.lookup <- data.frame(Modes=c("CB","TB","MB", "LR","SR", "CR",
                            AModes=c("bus", "bus", "bus", "light_rail", "light_rail", 
                                     "commuter_rail", "ferry", "vanpool", "monorail", "monorail", 
                                     "demand_reponse", "demand_reponse"))
+
+valuetype.lookup <- c("UPT" = "Boardings",
+                      "VRM" = "Revenue Miles",
+                      "VRH" = "Revenue Hours")
