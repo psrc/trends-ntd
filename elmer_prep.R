@@ -12,9 +12,10 @@ year <- 2018 # most current downloaded year
 source("lookups.R")
 source("functions.R")
 
-compare.ntd.versions.share.start.date(month, year)
+# compare.ntd.versions.share.start.date(month, year)
 
 # Update Elmer ------------------------------------------------------------
-# dt <- transform.ntd.non.master(month, year)
-# dbWriteTable(elmer_connection, "NationalTransitDatabase_Estimates", as.data.frame(dt))
-# dbDisconnect(elmer_connection)
+dt <- transform.ntd.non.master(month, year)
+elmer_connection <- db.connect()
+dbWriteTable(elmer_connection, "NationalTransitDatabase_Estimates", as.data.frame(dt))
+dbDisconnect(elmer_connection)
