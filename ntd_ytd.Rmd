@@ -18,68 +18,19 @@ setwd(dir)
 source("lookups.R")
 source("functions.R")
 
-# top XX uza boardings of most recent full year
-find.peer.uza <- function(valuetype = c("UPT", "VRM", "VRH"), n) {
-  dtelm <- read.dt()
-  curr.date <- max(dtelm$Date)
-  if (month(curr.date) < 12) {
-    prev.yr <- year(curr.date) - 1
-    st.prev.yr <- paste0(year(curr.date)-1, "-01-01")
-    end.prev.yr <- paste0(year(curr.date)-1, "-12-01")
-    dt <- copy(dtelm)
-    dtsub <- dt[ValueType == valuetype & (Date %between% c(st.prev.yr, end.prev.yr)), ]
-  } else {
-    st.yr <- paste0(year(curr.date), "-01-01")
-    dt <- copy(dtelm)
-    dtsub <- dt[ValueType == valuetype & (Date %between% c(st.yr, curr.date)), ]
-  }
-  dtagg <- dtsub[, lapply(.SD, sum), .SDcols = c("Value"), by = c("UrbanAreaName", "UrbanArea")]
-  dtpeer <- dtagg[order(-Value)][1:n]
-} 
-
-create.dt.peer.uza.ytd <- function(valuetype, n) {
-  dtelm <- read.dt()
-  curr.date <- max(dtelm$Date)
-  curr.month <- month(curr.date)
-  prev.yr <- paste0(year(curr.date)-1, "-01-01")
-  
-  dt <- dtelm[ValueType == valuetype & Active == "Active", ][Date %between% c(prev.yr, curr.date),][month(Date) %in% c(1:curr.month)]
-  dtsum <- dt[, lapply(.SD, sum), .SDcols = c("Value"), by = .(UrbanArea, UrbanAreaName, year(Date))]
-  dtpeer <- find.peer.uza(valuetype, n) # select those in top 25 uzas
-  dtsum2 <- dtsum[UrbanArea %in% dtpeer$UrbanArea | UrbanAreaName %in% c("Bremerton, WA"), ]
-  years <- paste0("yr", unique(dtsum2$year))
-  dtc <- dcast.data.table(dtsum2, UrbanArea + UrbanAreaName ~ paste0("yr", year), value.var = "Value")
-  dtc[, diff := get(eval(years[2]))-get(eval(years[1]))
-      ][, share := diff/get(eval(years[1]))
-        ][UrbanArea %in% c(14, 180), color := "TRUE" # 14 = Seattle, 180 = Bremerton
-          ][!(UrbanArea %in% c(14, 180)), color := "FALSE"
-            ][, ytd := month.abb[curr.month]]
-  return(dtc)
-}
-
-create.dotplot.peer.uza.ytd <- function(table) {
-  yrcols <- colnames(table)[str_which(colnames(table), "^yr")]
-  years <- str_extract(yrcols, "\\d+")
-  
-  g <- ggplot(table) +
-    geom_point(aes(x = diff, y = share, color = color)) +
-    geom_text_repel(aes(x = diff, y = share, label = UrbanAreaName, color = color), size = 2.5) + 
-    scale_color_manual(values = c("TRUE" = "purple", "FALSE" = "#3d3d44")) +
-    geom_hline(aes(yintercept = 0), alpha = .2) +
-    geom_vline(aes(xintercept = 0), alpha = .2) +
-    scale_y_continuous(labels=scales::percent) +
-    scale_x_continuous(limits = c(min(table$diff) + -5000000, max(table$diff) + 20000000), labels=scales::comma) +
-    ylab("") +
-    xlab(paste0("Growth YTD (Jan-", unique(table$ytd), ") ", years[1], "-", years[2])) +
-    theme(legend.position = "none",
-          axis.title.x = element_text(size = 10, margin = margin(t = 20, r = 0, b = 0, l = 0)))
-  g
-}
-
-dtc <- create.dt.peer.uza.ytd("UPT", 15)
-g <- create.dotplot.peer.uza.ytd(dtc)
-print(g)
 
 ```
 
+```{r Excel Export PSRC Boardings}
+# Export Annual Summary by Agency & Mode
+dt <- rbindlist(list(summarise.boardings.by.agency.mode(), summarise.boardings.by.mode()), use.names = TRUE)
+t <- calc.change.and.shares(dt)
+export.excel(t)
+```
+
+```{r Excel Export Metros}
+dt <- summarize.annual.uza.pop.boardings()
+t <- calc.annual.uza.pop.boardings.ranks(dt)
+
+```
 
