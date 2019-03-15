@@ -167,10 +167,10 @@ calc.change.and.shares <- function(table) {
   t <- table[, lapply(.SD, function(x) replace(x, which(is.nan(x)|is.infinite(x)), 0))]
 }
 
-export.excel <- function(table) {
+export.excel.psrc.boardings <- function(table) {
   yrscols <- str_subset(colnames(table), "^cy|share")
   sumcols <- setdiff(colnames(table), yrscols)
-  newfilenm <- paste0(paste0(sumcols, collapse = "_"), "_Summary_")
+  newfilenm <- str_to_lower(paste0("summary_", paste0(sumcols, collapse = "_"), "_"))
   wb <- createWorkbook()
   addWorksheet(wb, newfilenm)
   modifyBaseFont(wb, fontSize = 10, fontName = "Segoe UI Semilight")
@@ -228,7 +228,6 @@ summarize.annual.uza.pop.boardings <- function() {
 }
 
 calc.annual.uza.pop.boardings.ranks <- function(table) {
-  # dt <- summarize.annual.uza.pop.boardings()
   brd.cols <- str_subset(colnames(table), "^boarding")
   max.p <- max(str_subset(colnames(table), "^pop"))
   max.b <- max(brd.cols)
@@ -238,10 +237,25 @@ calc.annual.uza.pop.boardings.ranks <- function(table) {
      ][, boardings_rate := boardings_growth/get(eval(prv.b))
        ][, boardings_capita := get(eval(max.b))/get(eval(max.p))]
   b.rank.cols <- str_subset(colnames(table), "^boardings")
-  rank.cols <- c(max.p, max.b, b.rank.cols)
-  b.rank.cols.date <- c(max.p, max.b, paste(b.rank.cols, c(rep(yrs.b, 2), str_extract(max.b, "\\d+")), sep = "_" ))
-  rank.colsnm <- paste0("rank_", b.rank.cols.date)
+  b.rank.cols.new <- paste(b.rank.cols, c(rep(yrs.b, 2), str_extract(max.b, "\\d+")), sep = "_" )
+  setnames(table, b.rank.cols, b.rank.cols.new)
+  rank.cols <- c(max.p, max.b, b.rank.cols.new)
+  rank.colsnm <- paste0("rank_", rank.cols)
   tt <- table[, (rank.colsnm) := mapply(function(x) rank(-.SD[[x]]), rank.cols, SIMPLIFY = F)]
+}
+
+export.excel.uza.boardings <- function(table) {
+  newfilenm <- "summary_uza_pop_boarding_" 
+  sheetnm <- "Metros"
+  wb <- createWorkbook()
+  addWorksheet(wb, sheetnm)
+  modifyBaseFont(wb, fontSize = 10, fontName = "Segoe UI Semilight")
+  pct <- createStyle(numFmt="0.0%")
+  num <- createStyle(numFmt = "#,##0")
+  writeData(wb, sheet = sheetnm, table)
+  addStyle(wb, sheetnm, style = pct, cols = str_which(colnames(table), "^boardings_rate"), rows = c(2:(nrow(table)+1)), gridExpand = T)
+  addStyle(wb, sheetnm, style = num, cols = str_which(colnames(table), "^pop|boarding_|boardings_growth"), rows = c(2:(nrow(table)+1)), gridExpand = T, stack = T)
+  saveWorkbook(wb, file = file.path(dir, paste0(newfilenm, Sys.Date(), ".xlsx")), overwrite = T)
 }
 
 

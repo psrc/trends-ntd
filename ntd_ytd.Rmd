@@ -18,19 +18,19 @@ setwd(dir)
 source("lookups.R")
 source("functions.R")
 
-
 ```
 
 ```{r Excel Export PSRC Boardings}
 # Export Annual Summary by Agency & Mode
 dt <- rbindlist(list(summarise.boardings.by.agency.mode(), summarise.boardings.by.mode()), use.names = TRUE)
 t <- calc.change.and.shares(dt)
-export.excel(t)
+export.excel.psrc.boardings(t)
 ```
 
 ```{r Excel Export Metros}
 dt <- summarize.annual.uza.pop.boardings()
 t <- calc.annual.uza.pop.boardings.ranks(dt)
+export.excel.uza.boardings(t)
 
 ```
 
